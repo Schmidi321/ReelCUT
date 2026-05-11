@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0a">
+<title>ReelBuilder — KI Videoschnitt</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #2a2a2a;
+    --accent: #e8c547;
+    --accent2: #ff6b35;
+    --text: #f0f0f0;
+    --muted: #666;
+    --success: #4caf7d;
+    --error: #ff4444;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.4;
+  }
+
+  header {
+    padding: 2rem 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+  }
+
+  .logo span { color: var(--text); }
+
+  .badge {
+    background: var(--accent);
+    color: #000;
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 0.2rem 0.6rem;
+    border-radius: 2px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 3rem 2rem;
+  }
+
+  /* Steps */
+  .steps {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 3rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  .step.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232,197,71,0.08);
+  }
+
+  .step.done {
+    border-color: var(--success);
+    color: var(--success);
+    background: rgba(76,175,125,0.08);
+  }
+
+  .step-num {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    border: 1px solid currentColor;
+  }
+
+  /* Panels */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Upload Zone */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 4rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: var(--surface);
+    position: relative;
+  }
+
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(232,197,71,0.04);
+  }
+
+  .upload-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+  }
+
+  .upload-zone h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.8rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+    color: var(--text);
+  }
+
+  .upload-zone p {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+  }
+
+  #fileInput { position: fixed; left: -9999px; top: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    min-height: 44px;
+    border-radius: 4px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    letter-spacing: 0.02em;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+
+  .btn-primary:hover { background: #f5d44a; transform: translateY(-1px); }
+
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--error);
+    border: 1px solid var(--error);
+    padding: 0.3rem 0.7rem;
+    font-size: 0.75rem;
+  }
+
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* Clip Grid */
+  .clip-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+
+  .clip-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .clip-card:hover { border-color: var(--accent); }
+
+  .clip-card.analyzing { border-color: var(--accent2); }
+  .clip-card.analyzed { border-color: var(--success); }
+  .clip-card.excluded { opacity: 0.4; border-color: var(--error); }
+
+  .clip-thumb {
+    width: 100%;
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    display: block;
+    background: var(--surface2);
+  }
+
+  .clip-thumb-placeholder {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: var(--muted);
+  }
+
+  .clip-info {
+    padding: 0.75rem;
+  }
+
+  .clip-name {
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 0.25rem;
+  }
+
+  .clip-meta {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .clip-ai-result {
+    font-size: 0.72rem;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+    min-height: 2rem;
+  }
+
+  .clip-score {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .score-bar {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .score-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  .score-num {
+    font-size: 0.7rem;
+    color: var(--muted);
+    min-width: 28px;
+  }
+
+  .clip-actions {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .clip-order-badge {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    background: var(--accent);
+    color: #000;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .analyzing-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--accent2);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 0.3rem;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Settings Panel */
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+  }
+
+  @media (max-width: 600px) { .settings-grid { grid-template-columns: 1fr; } }
+
+  .setting-group {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.25rem;
+  }
+
+  .setting-group h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 0.08em;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    color: var(--accent);
+  }
+
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+    margin-top: 0.8rem;
+  }
+
+  label:first-of-type { margin-top: 0; }
+
+  select, input[type="number"], input[type="text"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 0.6rem 0.8rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  select:focus, input:focus { border-color: var(--accent); }
+
+  .toggle-group {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.5rem;
+  }
+
+  .toggle-btn {
+    padding: 0.4rem 0.9rem;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .toggle-btn.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* Timeline Preview */
+  .timeline-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    overflow-x: auto;
+  }
+
+  .timeline-track {
+    display: flex;
+    gap: 3px;
+    align-items: stretch;
+    min-width: max-content;
+    height: 60px;
+  }
+
+  .timeline-clip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: #000;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    min-width: 40px;
+  }
+
+  .timeline-clip:hover { opacity: 0.85; }
+
+  .timeline-clip span {
+    writing-mode: horizontal-tb;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 4px;
+    max-width: 100%;
+  }
+
+  .beat-marker {
+    width: 2px;
+    height: 60px;
+    background: rgba(255,255,255,0.15);
+    flex-shrink: 0;
+  }
+
+  /* Output Panel */
+  .output-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .output-tab {
+    padding: 0.5rem 1.2rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .output-tab.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232,197,71,0.08);
+  }
+
+  .output-content { display: none; }
+  .output-content.active { display: block; }
+
+  pre {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.25rem;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    color: #a8d8a8;
+    white-space: pre-wrap;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  /* Caption output */
+  .caption-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.25rem;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+
+  /* Progress */
+  .progress-bar-wrap {
+    background: var(--surface2);
+    border-radius: 4px;
+    height: 4px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 4px;
+    transition: width 0.4s ease;
+  }
+
+  /* Status log */
+  .log {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    font-size: 0.78rem;
+    font-family: monospace;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 1rem;
+    color: var(--muted);
+  }
+
+  .log-entry { padding: 0.15rem 0; }
+  .log-entry.ok { color: var(--success); }
+  .log-entry.info { color: var(--accent); }
+  .log-entry.err { color: var(--error); }
+
+  /* Section headers */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .section-header h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    letter-spacing: 0.06em;
+  }
+
+  .section-header p {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-top: 0.2rem;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2rem 0;
+  }
+
+  .action-bar {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .spacer { flex: 1; }
+
+  .stat-pill {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .stat-pill b { color: var(--accent); }
+
+  /* Checklist */
+  .checklist { list-style: none; }
+  .checklist li {
+    padding: 0.4rem 0;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .checklist li:last-child { border: none; }
+  .check-icon { font-size: 0.9rem; }
+
+  .highlight { color: var(--accent); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Reel<span>Builder</span></div>
+  <div style="display:flex;align-items:center;gap:1rem">
+    <span style="font-size:0.8rem;color:var(--muted)">KI-gestützter Videoschnitt</span>
+    <span class="badge">Beta</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- Steps -->
+  <div class="steps">
+    <div class="step active" id="step-tab-1" onclick="goStep(1)">
+      <div class="step-num">1</div> Clips hochladen
+    </div>
+    <div class="step" id="step-tab-2" onclick="goStep(2)">
+      <div class="step-num">2</div> KI-Analyse
+    </div>
+    <div class="step" id="step-tab-3" onclick="goStep(3)">
+      <div class="step-num">3</div> Einstellungen
+    </div>
+    <div class="step" id="step-tab-4" onclick="goStep(4)">
+      <div class="step-num">4</div> Timeline & Export
+    </div>
+  </div>
+
+  <!-- PANEL 1: Upload -->
+  <div class="panel active" id="panel-1">
+    <div class="upload-zone" id="uploadZone">
+      <span class="upload-icon">🎬</span>
+      <h2>Videos auswählen</h2>
+      <p>MP4, MOV, AVI · mehrere Clips gleichzeitig wählbar</p>
+      <label for="fileInput" class="btn btn-primary" style="cursor:pointer">
+        📁 Clips auswählen
+      </label>
+      <input type="file" id="fileInput" multiple
+        accept="video/*,video/mp4,video/quicktime,video/x-msvideo,.mp4,.mov,.avi,.m4v"
+        style="position:fixed;left:-9999px;opacity:0">
+    </div>
+
+    <div id="clipGrid" class="clip-grid"></div>
+
+    <div class="action-bar" id="uploadActionBar" style="display:none">
+      <div>
+        <span class="stat-pill"><b id="clipCount">0</b> Clips geladen</span>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" onclick="goStep(2)">
+        Weiter zur KI-Analyse →
+      </button>
+    </div>
+  </div>
+
+  <!-- PANEL 2: Analyse -->
+  <div class="panel" id="panel-2">
+    <div class="section-header">
+      <div>
+        <h2>KI-Bild-Analyse</h2>
+        <p>Claude analysiert jeden Clip und bewertet Inhalt, Qualität und Relevanz</p>
+      </div>
+      <button class="btn btn-primary" id="analyzeBtn" onclick="startAnalysis()">
+        🤖 Analyse starten
+      </button>
+    </div>
+
+    <div id="progressWrap" style="display:none">
+      <div style="font-size:0.8rem;color:var(--muted)" id="progressLabel">Analysiere...</div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progressBar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="log" id="logBox"></div>
+
+    <div id="analysisGrid" class="clip-grid"></div>
+
+    <div class="action-bar" id="analysisActionBar" style="display:none">
+      <span class="stat-pill"><b id="topClipCount">0</b> Clips für Reel ausgewählt</span>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary" onclick="goStep(1)">← Zurück</button>
+      <button class="btn btn-primary" onclick="goStep(3)">Weiter zu Einstellungen →</button>
+    </div>
+  </div>
+
+  <!-- PANEL 3: Einstellungen -->
+  <div class="panel" id="panel-3">
+    <div class="section-header">
+      <div>
+        <h2>Schnitt-Einstellungen</h2>
+        <p>Passe Länge, Stil und Musik-Sync an</p>
+      </div>
+    </div>
+
+    <div class="settings-grid">
+      <div class="setting-group">
+        <h3>⏱ Timing</h3>
+        <label>Reel-Länge (Sekunden)</label>
+        <input type="number" id="reelLength" value="30" min="15" max="90">
+        <label>Min. Clip-Länge (Sekunden)</label>
+        <input type="number" id="minClip" value="1.0" min="0.5" max="5" step="0.5">
+        <label>Max. Clip-Länge (Sekunden)</label>
+        <input type="number" id="maxClip" value="3.0" min="1" max="10" step="0.5">
+      </div>
+
+      <div class="setting-group">
+        <h3>🎬 Stil</h3>
+        <label>Schnittrhythmus</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" onclick="selectStyle(this,'fast')">⚡ Schnell</button>
+          <button class="toggle-btn" onclick="selectStyle(this,'medium')">🎞 Mittel</button>
+          <button class="toggle-btn" onclick="selectStyle(this,'slow')">🌊 Langsam</button>
+        </div>
+        <label>Übergänge</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" onclick="selectTrans(this,'cut')">✂ Hard Cut</button>
+          <button class="toggle-btn" onclick="selectTrans(this,'fade')">🌫 Fade</button>
+          <button class="toggle-btn" onclick="selectTrans(this,'flash')">⚡ Flash</button>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h3>🎵 Beat Sync</h3>
+        <label>Beats per Minute (BPM)</label>
+        <input type="number" id="bpm" value="120" min="60" max="200">
+        <label>Beat-Sync aktivieren</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" onclick="selectBeat(this,true)">✅ Ja</button>
+          <button class="toggle-btn" onclick="selectBeat(this,false)">❌ Nein</button>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h3>📝 Caption / Untertitel</h3>
+        <label>Sprache</label>
+        <select id="captionLang">
+          <option value="de">Deutsch</option>
+          <option value="en">Englisch</option>
+        </select>
+        <label>Stil</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" onclick="selectCaptionStyle(this,'bold')">BOLD</button>
+          <button class="toggle-btn" onclick="selectCaptionStyle(this,'minimal')">minimal</button>
+          <button class="toggle-btn" onclick="selectCaptionStyle(this,'cinematic')">Cinematic</button>
+        </div>
+        <label>Thema / Ort (für Caption-Text)</label>
+        <input type="text" id="captionTheme" value="Jonsdorf · Naturpark Zittauer Gebirge">
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-secondary" onclick="goStep(2)">← Zurück</button>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" onclick="generateTimeline()">
+        🎬 Timeline & Export generieren →
+      </button>
+    </div>
+  </div>
+
+  <!-- PANEL 4: Export -->
+  <div class="panel" id="panel-4">
+    <div class="section-header">
+      <div>
+        <h2>Timeline & Export</h2>
+        <p>Vorschau, EDL-Export für Premiere und Caption für Instagram</p>
+      </div>
+    </div>
+
+    <!-- Timeline Visual -->
+    <div class="timeline-wrap">
+      <div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:0.08em">
+        Timeline Vorschau
+      </div>
+      <div class="timeline-track" id="timelineTrack"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:0.5rem;font-size:0.68rem;color:var(--muted)">
+        <span>0s</span>
+        <span id="tlMid"></span>
+        <span id="tlEnd"></span>
+      </div>
+    </div>
+
+    <!-- Schnittliste -->
+    <div style="margin-top:1.5rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);font-family:'Bebas Neue',sans-serif;letter-spacing:0.06em;font-size:1rem;color:var(--accent)">
+        📋 Schnittliste
+      </div>
+      <div id="cutList" style="padding:0.5rem 0"></div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Output Tabs -->
+    <div class="output-tabs">
+      <button class="output-tab active" onclick="switchTab('edl')">EDL (Premiere)</button>
+      <button class="output-tab" onclick="switchTab('xml')">XML (Premiere/DaVinci)</button>
+      <button class="output-tab" onclick="switchTab('capcut')">CapCut Protokoll</button>
+      <button class="output-tab" onclick="switchTab('caption')">Instagram Caption</button>
+    </div>
+
+    <div class="output-content active" id="tab-edl">
+      <pre id="edlOutput"></pre>
+      <div style="margin-top:0.75rem;display:flex;gap:0.75rem">
+        <button class="btn btn-primary" onclick="downloadFile('edl')">⬇ EDL downloaden</button>
+        <button class="btn btn-secondary" onclick="copyContent('edlOutput')">📋 Kopieren</button>
+      </div>
+    </div>
+
+    <div class="output-content" id="tab-xml">
+      <pre id="xmlOutput"></pre>
+      <div style="margin-top:0.75rem;display:flex;gap:0.75rem">
+        <button class="btn btn-primary" onclick="downloadFile('xml')">⬇ XML downloaden</button>
+        <button class="btn btn-secondary" onclick="copyContent('xmlOutput')">📋 Kopieren</button>
+      </div>
+    </div>
+
+    <div class="output-content" id="tab-capcut">
+      <pre id="capcutOutput"></pre>
+      <div style="margin-top:0.75rem">
+        <button class="btn btn-secondary" onclick="copyContent('capcutOutput')">📋 Kopieren</button>
+      </div>
+    </div>
+
+    <div class="output-content" id="tab-caption">
+      <div class="caption-box" id="captionOutput"></div>
+      <div style="margin-top:0.75rem;display:flex;gap:0.75rem">
+        <button class="btn btn-primary" onclick="generateCaption()">🤖 KI Caption generieren</button>
+        <button class="btn btn-secondary" onclick="copyContent('captionOutput')">📋 Kopieren</button>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-secondary" onclick="goStep(3)">← Zurück</button>
+      <div class="spacer"></div>
+      <span class="stat-pill">
+        <b id="finalStats">—</b>
+      </span>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ===================== STATE =====================
+const state = {
+  clips: [],       // {file, name, duration, url, thumbnail, analysis, score, included, order}
+  settings: {
+    reelLength: 30,
+    minClip: 1.0,
+    maxClip: 3.0,
+    style: 'fast',
+    transitions: 'cut',
+    beatSync: true,
+    bpm: 120,
+    captionStyle: 'bold',
+    captionLang: 'de',
+    captionTheme: 'Jonsdorf · Naturpark Zittauer Gebirge'
+  },
+  timeline: [],    // final cut list
+  currentStep: 1
+};
+
+// Colors for timeline clips
+const CLIP_COLORS = ['#e8c547','#ff6b35','#4caf7d','#64b5f6','#ce93d8','#ffb74d','#80cbc4','#f48fb1','#bcaaa4','#90a4ae'];
+
+// ===================== NAVIGATION =====================
+function goStep(n) {
+  if (n > 1 && state.clips.length === 0) return;
+  state.currentStep = n;
+  document.querySelectorAll('.panel').forEach((p,i) => {
+    p.classList.toggle('active', i+1 === n);
+  });
+  document.querySelectorAll('.step').forEach((s,i) => {
+    s.classList.remove('active','done');
+    if (i+1 < n) s.classList.add('done');
+    if (i+1 === n) s.classList.add('active');
+  });
+}
+
+// ===================== FILE UPLOAD =====================
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  handleFiles([...e.dataTransfer.files].filter(f => f.type.startsWith('video/')));
+});
+fileInput.addEventListener('change', function(e) {
+  const files = e.target.files;
+  if (!files || files.length === 0) return;
+  handleFiles([...files]);
+  // iOS Safari: Input zurücksetzen damit dieselben Dateien nochmal gewählt werden können
+  this.value = '';
+});
+// Zusätzlich: input Event als Fallback für ältere iOS Versionen
+fileInput.addEventListener('input', function(e) {
+  const files = e.target.files;
+  if (!files || files.length === 0) return;
+  handleFiles([...files]);
+});
+
+function handleFiles(files) {
+  files.forEach(file => {
+    const existing = state.clips.find(c => c.name === file.name);
+    if (existing) return;
+    const url = URL.createObjectURL(file);
+    const clip = {
+      file, name: file.name, url,
+      duration: null, thumbnail: null,
+      analysis: null, score: 0,
+      included: true,
+      order: state.clips.length + 1,
+      color: CLIP_COLORS[state.clips.length % CLIP_COLORS.length]
+    };
+    state.clips.push(clip);
+    generateThumbnail(clip);
+  });
+  // Sofort rendern — Action-Bar erscheint auch ohne Thumbnails
+  renderUploadGrid();
+}
+
+// Frame-Capture via User-getriggertem Video-Element
+// iOS erlaubt canvas.drawImage nur nach echtem User-Tap auf das Video
+function captureFrameFromVideo(videoEl, clip) {
+  return new Promise(resolve => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 288;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoEl, 0, 0, 512, 288);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      if (dataUrl && dataUrl.length > 4000) {
+        clip.thumbnail = dataUrl;
+        if (!clip.frames) clip.frames = [];
+        clip.frames.push(dataUrl.split(',')[1]);
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+    } catch(e) {
+      console.warn('captureFrame:', e.message);
+      resolve(false);
+    }
+  });
+}
+
+// extractFrames: nur Metadaten laden, kein autoplay
+function extractFrames(clip, count = 2) {
+  return new Promise(resolve => {
+    if (clip.frames && clip.frames.length > 0) {
+      resolve(clip.frames);
+      return;
+    }
+    const vid = document.createElement('video');
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.setAttribute('playsinline', '');
+    vid.setAttribute('webkit-playsinline', '');
+    vid.preload = 'metadata';
+    vid.addEventListener('loadedmetadata', () => {
+      clip.duration = vid.duration;
+      renderUploadGrid();
+      vid.src = '';
+      resolve([]);
+    });
+    vid.addEventListener('error', () => resolve([]));
+    setTimeout(() => resolve([]), 8000);
+    vid.src = clip.url;
+  });
+}
+
+
+// Wrapper für handleFiles — lädt Metadaten und startet Frame-Extraktion
+function generateThumbnail(clip) {
+  extractFrames(clip, 2).then(frames => {
+    if (frames.length > 0) {
+      renderUploadGrid();
+      renderAnalysisGrid();
+    }
+  });
+}
+
+function renderUploadGrid() {
+  const grid = document.getElementById('clipGrid');
+  grid.innerHTML = state.clips.map((c, i) => `
+    <div class="clip-card" id="clip-${i}">
+      <div class="clip-order-badge">${i+1}</div>
+      <div style="position:relative;width:100%;aspect-ratio:16/9;background:#111;overflow:hidden">
+        <video
+          id="vid-${i}"
+          src="${c.url}"
+          muted playsinline preload="metadata"
+          style="width:100%;height:100%;object-fit:cover;display:block;"
+        ></video>
+        ${c.thumbnail
+          ? `<img src="${c.thumbnail}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">`
+          : `<div onclick="scanClip(${i})" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);cursor:pointer;gap:0.4rem">
+               <span style="font-size:1.6rem">📷</span>
+               <span style="font-size:0.7rem;color:#e8c547;font-weight:600;letter-spacing:0.05em">TIPPEN ZUM SCANNEN</span>
+             </div>`
+        }
+      </div>
+      <div class="clip-info">
+        <div class="clip-name" title="${c.name}">${c.name}</div>
+        <div class="clip-meta">
+          ${c.duration ? `<span style="color:var(--accent)">${c.duration.toFixed(1)}s</span>` : '<span style="color:var(--muted)">...</span>'}
+          · ${(c.file.size/1024/1024).toFixed(1)} MB
+        </div>
+        <div class="clip-actions">
+          <button class="btn btn-danger" onclick="removeClip(${i})">✕ Entfernen</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('clipCount').textContent = state.clips.length;
+  const bar = document.getElementById('uploadActionBar');
+  bar.style.display = state.clips.length > 0 ? 'flex' : 'none';
+}
+
+function removeClip(i) {
+  URL.revokeObjectURL(state.clips[i].url);
+  state.clips.splice(i, 1);
+  state.clips.forEach((c, idx) => c.order = idx + 1);
+  renderUploadGrid();
+}
+
+// User tippt auf Clip → Video kurz abspielen → Frame capturen
+async function scanClip(idx) {
+  const clip = state.clips[idx];
+  // Video-Element aus dem DOM holen (User hat getippt = User-Geste!)
+  const vidEl = document.getElementById(`vid-${idx}`) || document.getElementById(`avid-${idx}`);
+  if (!vidEl) return;
+
+  // Zu 20% der Dauer springen
+  if (clip.duration) vidEl.currentTime = clip.duration * 0.2;
+
+  // Play starten (jetzt erlaubt weil User-Geste)
+  try {
+    await vidEl.play();
+    await new Promise(r => setTimeout(r, 250)); // kurz warten
+    vidEl.pause();
+
+    // Frame 1 capturen
+    const ok1 = await captureFrameFromVideo(vidEl, clip);
+
+    // Frame 2 bei 60%
+    if (ok1 && clip.duration) {
+      vidEl.currentTime = clip.duration * 0.6;
+      await new Promise(r => vidEl.addEventListener('seeked', r, {once:true}));
+      await new Promise(r => setTimeout(r, 150));
+      await captureFrameFromVideo(vidEl, clip);
+    }
+  } catch(e) {
+    // Fallback: direkt canvas ohne play
+    await captureFrameFromVideo(vidEl, clip);
+  }
+
+  renderUploadGrid();
+  renderAnalysisGrid();
+}
+
+// ===================== KI ANALYSE =====================
+async function startAnalysis() {
+  if (state.clips.length === 0) return;
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('logBox').innerHTML = '';
+  renderAnalysisGrid();
+
+  for (let i = 0; i < state.clips.length; i++) {
+    const clip = state.clips[i];
+    const pct = Math.round((i / state.clips.length) * 100);
+    document.getElementById('progressBar').style.width = pct + '%';
+    document.getElementById('progressLabel').textContent = `Analysiere Clip ${i+1} von ${state.clips.length}: ${clip.name}`;
+    addLog(`info`, `▶ Analysiere: ${clip.name}`);
+
+    const card = document.getElementById(`analysis-${i}`);
+    if (card) card.classList.add('analyzing');
+
+    try {
+      await analyzeClip(clip, i);
+      if (card) { card.classList.remove('analyzing'); card.classList.add('analyzed'); }
+      addLog('ok', `✓ ${clip.name} — Score: ${clip.score}/10 — ${clip.analysis?.motiv || ''}`);
+    } catch(e) {
+      clip.analysis = { motiv: 'Analyse fehlgeschlagen', tags: [], reelWert: 5 };
+      clip.score = 5;
+      addLog('err', `✗ ${clip.name}: ${e.message}`);
+    }
+    renderAnalysisGrid();
+  }
+
+  document.getElementById('progressBar').style.width = '100%';
+  document.getElementById('progressLabel').textContent = 'Analyse abgeschlossen ✓';
+
+  // Auto-sort by score
+  autoSort();
+  renderAnalysisGrid();
+
+  document.getElementById('analysisActionBar').style.display = 'flex';
+  document.getElementById('topClipCount').textContent = state.clips.filter(c => c.included).length;
+  addLog('ok', `✓ Sortierung nach Reel-Wert abgeschlossen`);
+}
+
+async function analyzeClip(clip, idx) {
+  // Frames extrahieren falls noch nicht vorhanden
+  if (!clip.frames || clip.frames.length === 0) {
+    addLog('info', `  → Extrahiere Frames aus ${clip.name}...`);
+    await extractFrames(clip, 2);
+  }
+
+  // Frames für API vorbereiten — 1 oder 2 je nachdem was vorhanden
+  const frames = clip.frames || [];
+  if (frames.length === 0) {
+    throw new Error('Keine Frames extrahierbar');
+  }
+
+  const prompt = `Du analysierst ${frames.length === 2 ? 'zwei Screenshots' : 'einen Screenshot'} aus einem Wandervideo für ein Instagram Reel im Naturpark Zittauer Gebirge / Jonsdorf.
+
+Antworte NUR mit einem JSON-Objekt, kein Markdown, kein Text davor oder danach:
+{
+  "motiv": "kurze Beschreibung des Motivs (max 8 Wörter)",
+  "tags": ["tag1", "tag2", "tag3"],
+  "reelWert": <Zahl 1-10, wie gut eignet sich dieser Clip für ein Action-Reel>,
+  "empfehlung": "Soll dieser Clip ins Reel? Warum? (max 15 Wörter)",
+  "position": "anfang|mitte|ende"
+}`;
+
+  // Content Array aufbauen — alle verfügbaren Frames senden
+  const contentArr = frames.map(b64 => ({
+    type: 'image',
+    source: { type: 'base64', media_type: 'image/jpeg', data: b64 }
+  }));
+  contentArr.push({ type: 'text', text: prompt });
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    mode: 'cors',
+    headers: {
+      'Content-Type': 'application/json',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: contentArr }]
+    })
+  });
+
+  const data = await response.json();
+  const text = data.content?.[0]?.text || '{}';
+  let result;
+  try {
+    result = JSON.parse(text.replace(/```json|```/g, '').trim());
+  } catch {
+    result = { motiv: clip.name, tags: [], reelWert: 5, empfehlung: 'Manuell prüfen', position: 'mitte' };
+  }
+  clip.analysis = result;
+  clip.score = result.reelWert || 5;
+  clip.position = result.position || 'mitte';
+  clip.included = clip.score >= 4;
+}
+
+function autoSort() {
+  // Sort: anfang first, then by score desc, ende last
+  state.clips.sort((a, b) => {
+    const posOrder = { anfang: 0, mitte: 1, ende: 2 };
+    const pa = posOrder[a.position] ?? 1;
+    const pb = posOrder[b.position] ?? 1;
+    if (pa !== pb) return pa - pb;
+    return (b.score || 0) - (a.score || 0);
+  });
+  state.clips.forEach((c, i) => c.order = i + 1);
+}
+
+function renderAnalysisGrid() {
+  const grid = document.getElementById('analysisGrid');
+  grid.innerHTML = state.clips.map((c, i) => `
+    <div class="clip-card ${c.analysis ? (c.included ? 'analyzed' : 'excluded') : ''}" id="analysis-${i}">
+      <div class="clip-order-badge">${i+1}</div>
+      ${c.thumbnail
+        ? `<img class="clip-thumb" src="${c.thumbnail}" alt="${c.name}">`
+        : `<div class="clip-thumb-placeholder">🎬</div>`}
+      <div class="clip-info">
+        <div class="clip-name">${c.name}</div>
+        <div class="clip-meta">${c.duration ? c.duration.toFixed(1)+'s' : '...'}</div>
+        <div class="clip-ai-result">
+          ${c.analysis
+            ? `<span style="color:var(--accent)">🎯 ${c.analysis.motiv}</span><br>
+               <span style="color:var(--muted);font-size:0.68rem">${(c.analysis.tags||[]).join(' · ')}</span>`
+            : c.name === state.clips[0]?.name && !c.analysis
+              ? `<span class="analyzing-spinner"></span> Wird analysiert...`
+              : `<span style="color:var(--muted)">Wartet...</span>`}
+        </div>
+        ${c.analysis ? `
+        <div class="clip-score">
+          <div class="score-bar"><div class="score-fill" style="width:${(c.score||0)*10}%"></div></div>
+          <div class="score-num">${c.score}/10</div>
+        </div>
+        <div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.5rem">${c.analysis.empfehlung||''}</div>
+        ` : ''}
+        <div class="clip-actions">
+          <button class="btn btn-secondary" style="padding:0.3rem 0.7rem;font-size:0.72rem" onclick="toggleInclude(${i})">
+            ${c.included ? '✅ Im Reel' : '❌ Ausgeschlossen'}
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleInclude(i) {
+  state.clips[i].included = !state.clips[i].included;
+  document.getElementById('topClipCount').textContent = state.clips.filter(c => c.included).length;
+  renderAnalysisGrid();
+}
+
+// ===================== SETTINGS =====================
+let selectedStyle = 'fast', selectedTrans = 'cut', selectedBeat = true, selectedCaptionStyle = 'bold';
+
+function selectStyle(btn, val) {
+  selectedStyle = val;
+  btn.parentElement.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function selectTrans(btn, val) {
+  selectedTrans = val;
+  btn.parentElement.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function selectBeat(btn, val) {
+  selectedBeat = val;
+  btn.parentElement.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function selectCaptionStyle(btn, val) {
+  selectedCaptionStyle = val;
+  btn.parentElement.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ===================== TIMELINE GENERATION =====================
+function generateTimeline() {
+  const reelLength = parseFloat(document.getElementById('reelLength').value) || 30;
+  const minClip = parseFloat(document.getElementById('minClip').value) || 1.0;
+  const maxClip = parseFloat(document.getElementById('maxClip').value) || 3.0;
+  const bpm = parseInt(document.getElementById('bpm').value) || 120;
+  const beatInterval = 60 / bpm;
+
+  const includedClips = state.clips.filter(c => c.included);
+  if (includedClips.length === 0) { alert('Keine Clips ausgewählt!'); return; }
+
+  // Distribute time
+  const timeline = [];
+  let totalTime = 0;
+  let clipIdx = 0;
+
+  while (totalTime < reelLength && clipIdx < includedClips.length * 3) {
+    const clip = includedClips[clipIdx % includedClips.length];
+    let dur;
+    if (selectedBeat) {
+      // Snap to beat
+      const beats = Math.max(1, Math.round((maxClip - minClip) / 2 / beatInterval));
+      dur = beats * beatInterval;
+    } else {
+      dur = minClip + Math.random() * (maxClip - minClip);
+    }
+    dur = Math.min(dur, reelLength - totalTime);
+    if (dur < 0.3) break;
+
+    // Use actual clip duration as max source
+    const srcDur = clip.duration || 5;
+    const srcIn = Math.random() * Math.max(0, srcDur - dur - 0.5);
+
+    timeline.push({
+      clipName: clip.name,
+      clipColor: clip.color,
+      motiv: clip.analysis?.motiv || clip.name,
+      srcIn: srcIn,
+      srcOut: srcIn + dur,
+      timelineIn: totalTime,
+      timelineOut: totalTime + dur,
+      duration: dur,
+      transition: selectedTrans
+    });
+
+    totalTime += dur;
+    clipIdx++;
+  }
+
+  state.timeline = timeline;
+
+  // Render
+  goStep(4);
+  renderTimeline(reelLength, bpm);
+  renderCutList();
+  generateEDL();
+  generateXML();
+  generateCapcutProtocol();
+  document.getElementById('finalStats').textContent = `${timeline.length} Clips · ${reelLength}s · ${bpm} BPM`;
+}
+
+function renderTimeline(reelLength, bpm) {
+  const track = document.getElementById('timelineTrack');
+  const beatInterval = 60 / bpm;
+  const PX_PER_SEC = 30;
+
+  let html = '';
+  let beatTime = 0;
+  const beats = [];
+  while (beatTime < reelLength) { beats.push(beatTime); beatTime += beatInterval; }
+
+  // Mix clips and beat markers
+  const events = [
+    ...state.timeline.map(c => ({ type: 'clip', ...c })),
+    ...beats.map(t => ({ type: 'beat', time: t }))
+  ].sort((a, b) => (a.timelineIn || a.time || 0) - (b.timelineIn || b.time || 0));
+
+  let curTime = 0;
+  state.timeline.forEach((c, i) => {
+    const w = Math.max(40, c.duration * PX_PER_SEC);
+    html += `<div class="timeline-clip" style="width:${w}px;background:${c.clipColor};flex-shrink:0" title="${c.motiv} (${c.duration.toFixed(1)}s)">
+      <span>${i+1}. ${c.motiv.split(' ').slice(0,2).join(' ')}</span>
+    </div>`;
+    // Add beat markers within this clip
+    beats.forEach(bt => {
+      if (bt > c.timelineIn && bt < c.timelineOut) {
+        html += `<div class="beat-marker" style="margin-left:-${(bt-c.timelineIn)*PX_PER_SEC}px"></div>`;
+      }
+    });
+  });
+
+  track.innerHTML = html;
+  document.getElementById('tlMid').textContent = (reelLength/2).toFixed(0) + 's';
+  document.getElementById('tlEnd').textContent = reelLength + 's';
+}
+
+function renderCutList() {
+  const list = document.getElementById('cutList');
+  list.innerHTML = state.timeline.map((c, i) => `
+    <div style="display:flex;align-items:center;gap:1rem;padding:0.6rem 1.25rem;border-bottom:1px solid var(--border);font-size:0.82rem">
+      <div style="width:24px;height:24px;border-radius:50%;background:${c.clipColor};display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:#000;flex-shrink:0">${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.clipName}</div>
+        <div style="color:var(--muted);font-size:0.72rem">${c.motiv}</div>
+      </div>
+      <div style="color:var(--muted);font-size:0.75rem;white-space:nowrap">
+        Src: ${c.srcIn.toFixed(2)}s → ${c.srcOut.toFixed(2)}s
+      </div>
+      <div style="color:var(--accent);font-weight:500;min-width:40px;text-align:right">${c.duration.toFixed(1)}s</div>
+      <div style="color:var(--muted);font-size:0.72rem;min-width:60px;text-align:right">@ ${c.timelineIn.toFixed(2)}s</div>
+    </div>
+  `).join('');
+}
+
+// ===================== EDL EXPORT =====================
+function toTC(seconds) {
+  const h = Math.floor(seconds/3600);
+  const m = Math.floor((seconds%3600)/60);
+  const s = Math.floor(seconds%60);
+  const f = Math.floor((seconds%1)*25);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}:${String(f).padStart(2,'0')}`;
+}
+
+function generateEDL() {
+  let edl = `TITLE: Jonsdorf_Reel_30s\nFCM: NON-DROP FRAME\n\n`;
+  state.timeline.forEach((c, i) => {
+    edl += `${String(i+1).padStart(3,'0')}  AX       V     C        ${toTC(c.srcIn)} ${toTC(c.srcOut)} ${toTC(c.timelineIn)} ${toTC(c.timelineOut)}\n`;
+    edl += `* FROM CLIP NAME: ${c.clipName}\n`;
+    edl += `* COMMENT: ${c.motiv}\n\n`;
+  });
+  document.getElementById('edlOutput').textContent = edl;
+}
+
+function generateXML() {
+  const fps = 25;
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE xmeml>
+<xmeml version="4">
+  <sequence>
+    <name>Jonsdorf Reel 30s</name>
+    <duration>${Math.round(30 * fps)}</duration>
+    <rate><timebase>${fps}</timebase><ntsc>FALSE</ntsc></rate>
+    <media>
+      <video>
+        <format>
+          <samplecharacteristics>
+            <width>1080</width>
+            <height>1920</height>
+            <rate><timebase>${fps}</timebase></rate>
+          </samplecharacteristics>
+        </format>
+        <track>\n`;
+
+  state.timeline.forEach((c, i) => {
+    const inFrame = Math.round(c.srcIn * fps);
+    const outFrame = Math.round(c.srcOut * fps);
+    const startFrame = Math.round(c.timelineIn * fps);
+    xml += `          <clipitem id="clip${i+1}">
+            <name>${c.clipName}</name>
+            <start>${startFrame}</start>
+            <end>${Math.round(c.timelineOut * fps)}</end>
+            <in>${inFrame}</in>
+            <out>${outFrame}</out>
+            <file><name>${c.clipName}</name></file>
+          </clipitem>\n`;
+  });
+
+  xml += `        </track>
+      </video>
+    </media>
+  </sequence>
+</xmeml>`;
+  document.getElementById('xmlOutput').textContent = xml;
+}
+
+function generateCapcutProtocol() {
+  let txt = `# CapCut Schnittprotokoll — Jonsdorf Reel\n`;
+  txt += `# ${state.timeline.length} Clips · ${document.getElementById('reelLength').value}s\n\n`;
+  txt += `| # | Clip | Src In | Src Out | Dauer | Timeline |\n`;
+  txt += `|---|------|--------|---------|-------|----------|\n`;
+  state.timeline.forEach((c, i) => {
+    txt += `| ${i+1} | ${c.clipName} | ${c.srcIn.toFixed(1)}s | ${c.srcOut.toFixed(1)}s | ${c.duration.toFixed(1)}s | @ ${c.timelineIn.toFixed(1)}s |\n`;
+  });
+  txt += `\n## Reihenfolge der Clips:\n`;
+  state.timeline.forEach((c, i) => {
+    txt += `${i+1}. ${c.motiv} — ${c.duration.toFixed(1)}s\n`;
+  });
+  document.getElementById('capcutOutput').textContent = txt;
+}
+
+// ===================== CAPTION GENERIERUNG =====================
+async function generateCaption() {
+  const theme = document.getElementById('captionTheme').value;
+  const lang = document.getElementById('captionLang').value;
+  const style = selectedCaptionStyle;
+  const clips = state.clips.filter(c => c.included && c.analysis);
+  const motifs = clips.map(c => c.analysis.motiv).join(', ');
+
+  document.getElementById('captionOutput').textContent = '⏳ Generiere Caption...';
+
+  const prompt = `Schreibe eine Instagram Reel Caption auf ${lang === 'de' ? 'Deutsch' : 'Englisch'}.
+
+Thema: ${theme}
+Stil: ${style === 'bold' ? 'Kraftvoll und inspirierend' : style === 'minimal' ? 'Minimal und poetisch' : 'Cineastisch und atmosphärisch'}
+Sichtbare Motive im Reel: ${motifs}
+
+Die Caption soll:
+- 3-5 Zeilen lang sein
+- Relevante Hashtags enthalten (10-15 Stück)
+- Zum Reel-Stil passen
+- Authentisch klingen, nicht wie Marketing
+
+Antworte NUR mit der fertigen Caption, kein Kommentar.`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await response.json();
+    document.getElementById('captionOutput').textContent = data.content?.[0]?.text || 'Fehler';
+  } catch(e) {
+    document.getElementById('captionOutput').textContent = 'Fehler: ' + e.message;
+  }
+}
+
+// ===================== UTILS =====================
+function addLog(type, msg) {
+  const log = document.getElementById('logBox');
+  const div = document.createElement('div');
+  div.className = `log-entry ${type}`;
+  div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.output-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.output-content').forEach(c => c.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById(`tab-${name}`).classList.add('active');
+}
+
+function copyContent(id) {
+  const el = document.getElementById(id);
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    const orig = event.target.textContent;
+    event.target.textContent = '✓ Kopiert!';
+    setTimeout(() => event.target.textContent = orig, 1500);
+  });
+}
+
+function downloadFile(type) {
+  const content = document.getElementById(type === 'edl' ? 'edlOutput' : 'xmlOutput').textContent;
+  const ext = type === 'edl' ? 'edl' : 'xml';
+  const blob = new Blob([content], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Jonsdorf_Reel.${ext}`;
+  a.click();
+}
+</script>
+</body>
+</html>
